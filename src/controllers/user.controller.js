@@ -26,9 +26,16 @@ const registerUser = asyncHandler(async (req, res)=>{
     // req.files.avatar[0].path is used to get the path of the avatar file.
     // req.files.coverImage[0].path is used to get the path of the coverImage file.
     // avatarLocalPath is used to store the path of the avatar file.
-    // coverImageLocalPath is used to store the path of the coverImage file
     const avatarLocalPath = req.files?.avatar[0]?.path;
-    const coverImageLocalPath = req.files?.coverImage[0]?.path;
+    // coverImageLocalPath is used to store the path of the coverImage file.
+    // req.files is used to get the files from the request.
+    // Array.isArray is used to check if the coverImage is an array or not.
+    // res.files.coverImage.length is used to check the length of the coverImage.
+    // req.files.coverImage[0].path is used ot get the path of the coverImage file.
+    let coverImageLocalPath;
+    if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0){
+        coverImageLocalPath = req.files.coverImage[0].path;
+    }
     // check if avatarLocalPath is provided.
     // if avatarLocalPath is not provided, then throw an error.
     if(!avatarLocalPath){
@@ -42,7 +49,8 @@ const registerUser = asyncHandler(async (req, res)=>{
     if(!avatar){
         throw new ApiError(400, "Avatar file is required");
     }
-    // adding 
+    // create a new user.
+    // user is created with the provided fields.
     const user = await User.create({
         fullName,
         avatar:avatar.url,
@@ -51,16 +59,20 @@ const registerUser = asyncHandler(async (req, res)=>{
         password,
         username:username.toLowerCase(),
     });
-    // 
+    // if user is not created, then throw an error.
+    // if user is created successfully, then send the response.
     const createdUser = await User.findById(user._id).select(
         "-password -refreshToken"
     )
-    // 
+    // if the user is not created, then throw an error.
     if(!createdUser){
         throw new ApiError(500, "Something went wrong while registering the User.");
     }
+    // if the user is created successfully, then send the response.
+    // response is sent in json format.
+    // response contains the status code, created user and the message.
     return res.status(201).json(
-        new ApiResponse(200, createdUser, "User registered Successfully.");
+        new ApiResponse(200, createdUser, "User registered Successfully.")
     )
 });
 

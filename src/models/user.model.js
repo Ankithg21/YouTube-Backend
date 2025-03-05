@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 
 //userSchema is the schema for the user model.
-const userSchema = new Schema({
+const userSchema = new mongoose.Schema({
     username:{
         type:String,
         required:true,
@@ -62,7 +62,7 @@ userSchema.pre("save", async function(next){
 //checking whether the password is correct or not.
 //isPasswordCheck is a custom method that we are adding to the userSchema.
 // this method will be used to check whether the password is correct or not.
-userSchema.models.isPasswordCheck = async function(password){
+userSchema.methods.isPasswordCheck = async function(password){
     return await bcrypt.compare(password,this.password);
 };
 

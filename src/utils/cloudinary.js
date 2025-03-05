@@ -33,6 +33,7 @@ const uploadOnCloudinary = async (localFilePath)=>{
         // url of the uploaded file is printed.
         // result.url is used to get the url of the uploaded file.
         console.log("File uploaded successfully.",result.url);
+        fs.unlinkSync(localFilePath);
         // result is returned.
         return result;
     } catch (error) {

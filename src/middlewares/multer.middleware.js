@@ -21,6 +21,5 @@ const storage = multer.diskStorage({
 });
 // storage is used to store the file on the disk
 // storage is set to the storage object.
-export const upload = multer({
-    storage,
-})
+const upload = multer({storage});
+export default upload;
