@@ -8,24 +8,30 @@
 // Error.captureStackTrace is used to capture the stack trace of the error.
 // if stack is not null, then set the stack of the response.
 class ApiError extends Error {
+    // constructor is used to initialize the class.
     constructor(
         statusCode,
         message="Something went wrong",
         errors=[],
         stack=""
     ){
+        // calling the parent class constructor.
+        // setting the status code, message, data, success, errors.
         super(message);
         this.statusCode=statusCode;
         this.message=message;
         this.data=null;
         this.success=false;
         this.errors=errors;
+        // if stack is provided, then set the stack.
+        // else capture the stack trace.
         if(stack){
             this.stack=stack;
         }else{
+            // capturing the stack trace.
             Error.captureStackTrace(this,this.constructor);
         }
     }
-}
+};
 // export ApiError class.
 export {ApiError};
