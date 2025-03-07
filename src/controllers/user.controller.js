@@ -190,28 +190,40 @@ const logoutUser = asyncHandler(async (req,res)=>{
 });
 
 const refreshAccessToken = asyncHandler(async (req,res)=>{
+    // Extracts the refreshToken from cookies (req.cookies.refreshToken)
     const incomingRefreshToken = req.cookies.refreshToken;
+    // If there is no refresh token, it throws a 401 Unauthorized error
     if(!incomingRefreshToken){
         throw new ApiError(401, "Unauthorized");
     }
     try {
+        // Verifies the refresh token using jwt.verify()
+        // It decodes the token and extracts user information
+        // Uses process.env.ACCESS_TOKEN_SECRET as the secret key for verification
         const decodedToken = jwt.verify(
             incomingRefreshToken,
             process.env.ACCESS_TOKEN_SECRET,
     
         )
+        // Fetches the user from the database using the _id from the decoded token.
         const user = await User.findById(decodedToken?._id);
+        // If no user is found, it throws a 401 Unauthorized error.
         if(!user){
             throw new ApiError(401, "invalid refresh token");
         }
+        // Compares the refresh token stored in the database (user.refreshToken) with the incomingRefreshToken.
+        // If they don't match, it rejects the request with a 401 Unauthorized error.
         if(user?.refreshToken !== incomingRefreshToken){
             throw new ApiError(401, "Refresh token is Expired.");
         }
+        // httpOnly: true → Prevents client-side JavaScript from accessing the cookies (security feature).
+        // secure: true → Ensures cookies are only sent over HTTPS.
         const options ={
             httpOnly:true,
             secure:true,
         }
         const {accessToken, newRefreshToken} = await generateAccessAndRefreshTokens(user._id);
+        // Sends the new tokens as HTTP-only cookies to the client.
         return res
         .status(200)
         .cookie("accessToken", accessToken, options)
@@ -220,8 +232,138 @@ const refreshAccessToken = asyncHandler(async (req,res)=>{
             new ApiResponse(200, {accessToken, refreshToken:newRefreshToken}, "Access token Refreshed.")
         )
     } catch (error) {
+        // If any error occurs, it throws a 401 Unauthorized error with the relevant message.
         throw new ApiError(401, error?.message || "Invalid Refresh Token");
     }
 });
 
-export {registerUser, loginUser, logoutUser, refreshAccessToken};
+const changeCurrentPassword = asyncHandler(async(req,res)=>{
+    // Extracts oldPassword and newPassword from the request body (req.body).
+    const {oldPassword, newPassword} = req.body;
+    // Retrieves the current logged-in user using req.user?._id, which is likely set by authentication middleware.
+    const user = await User.findById(req.user?._id);
+    // Calls user.isPasswordCorrect(oldPassword), which is a method on the User model that likely compares the provided password with the hashed password in the database.
+    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+    // If the old password is incorrect, it throws a 400 Bad Request error: "Invalid old Password."
+    if(!isPasswordCorrect){
+        throw new ApiError(400, "Invalid old Password.");
+    }
+    // Updates the password by assigning newPassword to user.password
+    user.password = newPassword;
+    // Calls user.save() to store the new password in the database.
+    // { validateBeforeSave: false } prevents unnecessary validations, but the password should still be hashed before saving.
+    await user.save({validateBeforeSave:false});
+    // Sends a 200 OK response.
+    return res.status(200).json(
+        new ApiResponse(200, {}, "Password Changed Successfully.")
+    )
+});
+
+const getCurrentUser = asyncHandler(async(req,res)=>{
+    return res
+    .status(200)
+    .json(
+        200,req.user,"Current user fetched Successfully."
+    )
+});
+
+const updateAccountDetails = asyncHandler(async(req,res)=>{
+    // Extracts fullName and email from the request body (req.body)
+    const {fullName, email} = req.body;
+    // If both fullName and email are missing, it throws a 400 Bad Request error with the message "All fields are required."
+    if(!fullName && !email){
+        throw new ApiError(400, "All fields are required.");
+    }
+    // Finds the user by their ID (req.user?._id), which is likely extracted from authentication middleware.
+    // Uses $set to update the fullName and email fields in the database.
+    // The { new: true } option returns the updated user document instead of the old one.
+    // .select("-password") ensures the password field is excluded from the returned user object.
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set:{
+                fullName:fullName,
+                email:email,
+            }
+        },
+        {new:true}
+    ).select("-password");
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200, user, "Account details updated Successfully.")
+    );
+});
+
+
+const updateUserAvatar = asyncHandler(async(req,res)=>{
+    // It attempts to retrieve the file path of the uploaded avatar from req.file?.path
+    // The optional chaining (?.) ensures that if req.file is undefined, it won’t cause an error
+    const avatarLocalPath = req.file?.path;
+    // if avatarLocalPath does not exit, then throw an ApiError.
+    if(!avatarLocalPath){
+        throw new ApiError(400, "Avatar file is missing.");
+    }
+    // Calls uploadOnCloudinary(avatarLocalPath), an async function, to upload the file to Cloudinary (a cloud-based image storage service)
+    const avatar = await uploadOnCloudinary(avatarLocalPath);
+    // if avatar.url does not exit, then throw an ApiError.
+    if(!avatar.url){
+        throw new ApiError(400, "Error while uploading on Avatar.");
+    }
+    // Updates the avatar field of the user in the database using User.findByIdAndUpdate().
+    // req.user?._id extracts the user’s ID from req.user (likely added by authentication middleware).
+    // The $set operator updates only the avatar field.
+    // { new: true } ensures that the function returns the updated user document.
+    // .select("-password") removes the password field from the returned user object.
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set:{
+                avatar: avatar.url
+            }
+        },
+        {new:true}
+    ).select("-password");
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200, user, "Avatar image uploaded Sucessfully.")
+    )
+}); 
+
+const updateUserCoverImage = asyncHandler(async(req,res)=>{
+    const coverImageLocalPath = req.file?.path;
+    if(!coverImageLocalPath){
+        throw new ApiError(400, "Cover Image is missing.")
+    }
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    if(!coverImage.url){
+        throw new ApiError(400, "Error while uploading cover image.")
+    }
+    const user = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+            $set:{
+                coverImage:coverImage.url
+            }
+        },
+        {new:true}
+    ).select("-password");
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200, user, "Cover image uploaded Sucessfully.")
+    )
+});
+
+export {
+    registerUser, 
+    loginUser, 
+    logoutUser, 
+    refreshAccessToken,
+    changeCurrentPassword,
+    getCurrentUser,
+    updateUserAvatar,
+    updateAccountDetails,
+    updateUserCoverImage,
+};
